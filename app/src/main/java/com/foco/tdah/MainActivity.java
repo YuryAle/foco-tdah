@@ -3,18 +3,26 @@ package com.foco.tdah;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Toast;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
+
 public class MainActivity extends Activity {
     private WebView web;
+    private static final String ASSET = "file:///android_asset/index.html";
+    private static final long CHECK_EVERY_MS = 3 * 3600000L;
+
     private String launchInfo = "{}";
+    private long lastCheck;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -32,9 +40,58 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient());
         web.addJavascriptInterface(new Bridge(this), "Native");
         setContentView(web);
-        web.loadUrl("file:///android_asset/index.html");
+        loadUi();
 
         Alarms.schedule(this);
+    }
+
+    /** Carrega a interface: a baixada numa atualização, se houver, senão a que veio no APK. */
+    private void loadUi() {
+        String html = Updater.html(this);
+        if (html == null) web.loadUrl(ASSET);
+        else web.loadDataWithBaseURL(ASSET, html, "text/html", "UTF-8", null);
+    }
+
+    /** Procura atualização fora da tela. manual = pedido pelo botão, então sempre responde algo. */
+    void checkUpdate(boolean manual) {
+        lastCheck = System.currentTimeMillis();
+        new Thread(() -> {
+            String r = Updater.check(getApplicationContext());
+            runOnUiThread(() -> {
+                if (isDestroyed()) return;
+                if (Updater.WEB.equals(r)) {
+                    loadUi();
+                    toast("App atualizado ✓");
+                } else if (Updater.APK.equals(r)) {
+                    web.evaluateJavascript("window.onUpdateInfo&&onUpdateInfo()", null);
+                    if (manual) installUpdate();
+                } else if (manual) {
+                    toast(Updater.NONE.equals(r) ? "Você já está na versão mais recente." : "Não deu para verificar. Confira a internet.");
+                }
+                web.evaluateJavascript("window.onUpdateDone&&onUpdateDone()", null);
+            });
+        }).start();
+    }
+
+    void installUpdate() {
+        runOnUiThread(() -> toast("Baixando a nova versão…"));
+        new Thread(() -> {
+            try {
+                Updater.installApk(getApplicationContext());
+            } catch (IOException e) {
+                runOnUiThread(() -> {
+                    toast("Não deu para instalar por aqui. Abrindo o download.");
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(Updater.APK_URL)));
+                    } catch (RuntimeException ignored) {
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private void toast(String text) {
+        Toast.makeText(this, text, Toast.LENGTH_LONG).show();
     }
 
     @Override
@@ -49,6 +106,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         WatchService.ensure(this);
+        if (System.currentTimeMillis() - lastCheck > CHECK_EVERY_MS) checkUpdate(false);
         if (web != null) web.evaluateJavascript("window.onNativeResume&&onNativeResume()", null);
     }
 

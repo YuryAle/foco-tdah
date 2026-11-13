@@ -1,5 +1,8 @@
 plugins { id 'com.android.application' }
 
+// version.json é a mesma fonte que o app consulta para saber se há atualização.
+def ver = new groovy.json.JsonSlurper().parse(rootProject.file('version.json'))
+
 android {
     namespace 'com.foco.tdah'
     compileSdk 34
@@ -8,8 +11,9 @@ android {
         applicationId 'com.foco.tdah'
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName '1.0'
+        versionCode ver.apk as int
+        versionName "1.${ver.apk}"
+        buildConfigField 'int', 'WEB_VERSION', "${ver.web}"
     }
     // Chave fixa para que as atualizações instalem por cima da versão anterior.
     signingConfigs {
@@ -24,6 +28,7 @@ android {
         release { minifyEnabled false; signingConfig signingConfigs.foco }
         debug { signingConfig signingConfigs.foco }
     }
+    buildFeatures { buildConfig true }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17

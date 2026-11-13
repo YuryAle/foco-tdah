@@ -5,7 +5,10 @@ import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInstaller;
 import android.os.Build;
+
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -21,6 +24,7 @@ import java.util.List;
 public class Alarms extends BroadcastReceiver {
     static final String ACT_TICK = "com.foco.tdah.TICK";
     static final String ACT_FOCUS = "com.foco.tdah.FOCUS";
+    static final String ACT_INSTALL = "com.foco.tdah.INSTALL";
 
     private static final int TASK = 0, PLAN = 1, MORNING = 2, NAG = 3;
     private static final long STALE_MS = 15 * 60000L;
@@ -44,6 +48,10 @@ public class Alarms extends BroadcastReceiver {
             Notif.show(c, 9001, "✅ Tempo de foco concluído!", "Boa! Levante, beba água e faça uma pausa curta.", "foco");
             return;
         }
+        if (ACT_INSTALL.equals(action)) {
+            installResult(c, intent);
+            return;
+        }
         if (ACT_TICK.equals(action)) {
             long now = System.currentTimeMillis();
             long last = Store.prefs(c).getLong("lastFire", now - 60000);
@@ -53,6 +61,23 @@ public class Alarms extends BroadcastReceiver {
         }
         schedule(c);
         WatchService.ensure(c);
+    }
+
+    /** Resposta do instalador do Android à atualização: pede a confirmação ou avisa o erro. */
+    @SuppressWarnings("deprecation")
+    private static void installResult(Context c, Intent intent) {
+        int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+        if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+            Intent confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT);
+            if (confirm == null) return;
+            try {
+                c.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (RuntimeException e) {
+                Toast.makeText(c, "Não foi possível abrir o instalador.", Toast.LENGTH_LONG).show();
+            }
+        } else if (status != PackageInstaller.STATUS_SUCCESS) {
+            Toast.makeText(c, "A atualização não foi instalada.", Toast.LENGTH_LONG).show();
+        }
     }
 
     /** Arma o alarme do próximo evento. Chamado sempre que os dados mudam e ao ligar o aparelho. */

@@ -57,6 +57,7 @@ nav button.on{color:var(--accent)}
 .banner{background:var(--warn-soft);color:var(--warn-ink);border-radius:16px;padding:12px 14px;margin-bottom:12px;font-size:14px;display:flex;align-items:center;gap:10px;justify-content:space-between}
 .banner button{font-weight:700;color:var(--warn);white-space:nowrap;padding:8px 0 8px 8px}
 .banner.ok{background:var(--accent-soft);color:var(--ok-ink)}
+.banner.ok button{color:var(--accent)}
 ul.tasks{list-style:none;margin:0;padding:0}
 ul.tasks li{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:16px;padding:6px 6px 6px 12px;margin-bottom:8px;min-height:58px}
 .chk{flex:0 0 30px;height:30px;border-radius:50%;border:2.5px solid var(--faint);display:flex;align-items:center;justify-content:center}
@@ -77,6 +78,17 @@ li.done .txt span{color:var(--muted)}
 .timebtn.set{color:var(--accent);border-color:var(--accent)}
 .timebtn input{position:absolute;inset:0;opacity:0;width:100%;height:100%}
 .add .btn{min-height:48px;padding:0 16px;font-size:22px}
+
+.rule{display:flex;align-items:center;gap:10px;padding:10px 0}
+.rule + .rule{border-top:1px solid var(--line)}
+.rule div{flex:1;min-width:0}
+.rule b{display:block;font-size:15px;word-wrap:break-word}
+.rule span{font-size:13px;color:var(--accent);font-weight:700}
+.field{width:100%;height:48px;border-radius:14px;border:1.5px solid var(--line);background:var(--bg);padding:0 14px;outline:none;color:var(--ink)}
+.field:focus{border-color:var(--accent)}
+.wd{flex:1;min-width:0;height:44px;border-radius:12px;background:var(--bg);border:1.5px solid var(--line);font-weight:700;font-size:13px;color:var(--muted)}
+.wd.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.wds{display:flex;gap:5px;margin:10px 0}
 
 /* Foco */
 .next{text-align:center;padding:22px 16px}
@@ -154,7 +166,8 @@ var mock = {
   usage: function(){ return JSON.stringify({'com.instagram.android':12,'com.zhiliaoapp.musically':7}); },
   openUsageSettings: function(){}, openOverlaySettings: function(){}, openAppInfo: function(){}, requestNotifications: function(){},
   systemDark: function(){ return !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches); }, setDark: function(){},
-  emergencyPass: function(){ return 1; }, startFocus: function(){}, cancelFocus: function(){}
+  emergencyPass: function(){ return 1; }, versionInfo: function(){ return 'teste'; },
+  checkUpdate: function(){ setTimeout(function(){ window.onUpdateDone(); }, 600); }, installUpdate: function(){}, startFocus: function(){}, cancelFocus: function(){}
 };
 var N = window.Native || mock;
 
@@ -165,7 +178,7 @@ var SOCIAL = ['com.instagram.android','com.instagram.lite','com.zhiliaoapp.music
   'com.facebook.lite','com.twitter.android','com.google.android.youtube','com.snapchat.android','com.kwai.video','com.reddit.frontpage',
   'com.pinterest','com.instagram.barcelona','tv.twitch.android.app'];
 var S = {tasks:{}, settings:{}, focus:{end:0, min:25}};
-var tab = 'agenda', viewDay = null, addTime = '', APPS = null, ST = {}, USE = {}, timer = null;
+var tab = 'agenda', viewDay = null, addTime = '', APPS = null, ST = {}, USE = {}, timer = null, updateAvail = false, checking = false, seq = 0;
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -174,6 +187,7 @@ function key(d){ return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pa
 function fromKey(k){ var p = k.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
 function shift(k, n){ var d = fromKey(k); d.setDate(d.getDate() + n); return key(d); }
 function today(){ return key(new Date()); }
+function uid(){ return Date.now() * 1000 + (seq++ % 1000); }
 function list(k){ return S.tasks[k] || []; }
 function pendingOf(k){ return list(k).filter(function(t){ return !t.done; }); }
 
@@ -182,8 +196,51 @@ function load(){
   S.tasks = S.tasks || {};
   S.focus = S.focus || {end:0, min:25};
   S.settings = Object.assign({}, DEF, S.settings || {});
+  S.recurring = S.recurring || [];
   var limit = shift(today(), -90);
   Object.keys(S.tasks).forEach(function(k){ if (k < limit || !S.tasks[k].length) delete S.tasks[k]; });
+  S.recurring.forEach(function(r){
+    r.skip = r.skip || {};
+    Object.keys(r.skip).forEach(function(k){ if (k < today()) delete r.skip[k]; });
+  });
+  if (materialize()) save();
+}
+
+/* ---------- Tarefas recorrentes ---------- */
+var HORIZON = 14;   // dias à frente já preenchidos, para os lembretes e o bloqueio valerem sem abrir o app
+var WD = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+function matches(r, k){
+  if (k < r.start) return false;
+  if (r.kind === 'week') return r.days.indexOf(fromKey(k).getDay()) >= 0;
+  return Math.round((fromKey(k) - fromKey(r.start)) / 86400000) % r.every === 0;
+}
+/* Cria nas listas dos próximos dias as tarefas das regras que ainda não estão lá. */
+function materialize(){
+  var changed = false, t = today();
+  for (var i = 0; i < HORIZON; i++) {
+    var k = shift(t, i);
+    S.recurring.forEach(function(r){
+      if (!matches(r, k) || r.skip[k]) return;
+      if (list(k).some(function(x){ return x.rid === r.id; })) return;
+      if (!S.tasks[k]) S.tasks[k] = [];
+      S.tasks[k].push({id: uid(), text: r.text, time: r.time, done: false, rid: r.id});
+      changed = true;
+    });
+  }
+  return changed;
+}
+function ruleText(r){
+  var when = r.kind === 'week'
+    ? (r.days.length === 7 ? 'Todo dia' : r.days.slice().sort(function(a, b){ return (a + 6) % 7 - (b + 6) % 7; }).map(function(d){ return WD[d]; }).join(', '))
+    : (r.every === 1 ? 'Todo dia' : 'A cada ' + r.every + ' dias');
+  return when + (r.time ? ' às ' + r.time : '');
+}
+function removeRule(id){
+  var t = today();
+  S.recurring = S.recurring.filter(function(r){ return r.id !== id; });
+  Object.keys(S.tasks).forEach(function(k){
+    if (k >= t) S.tasks[k] = S.tasks[k].filter(function(x){ return x.rid !== id || x.done; });
+  });
 }
 function save(){ N.save(JSON.stringify(S)); }
 function refreshNative(){
@@ -225,7 +282,7 @@ var CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>';
 function taskItems(k, withDelete){
   return sorted(k).map(function(t){
     return '<li class="' + (t.done ? 'done' : '') + '" data-id="' + t.id + '"><button class="chk" data-act="toggle" aria-label="Concluir">' + CHECK + '</button>' +
-      '<div class="txt" data-act="toggle">' + (t.time ? '<span>' + esc(t.time) + '</span>' : '') + esc(t.text) + '</div>' +
+      '<div class="txt" data-act="toggle">' + (t.time || t.rid ? '<span>' + esc(t.time || '') + (t.rid ? (t.time ? ' · ' : '') + '↻ recorrente' : '') + '</span>' : '') + esc(t.text) + '</div>' +
       (withDelete ? '<button class="del" data-act="del" aria-label="Apagar">×</button>' : '') + '</li>';
   }).join('');
 }
@@ -244,6 +301,7 @@ function viewAgenda(){
     (l.length ? done + ' de ' + l.length + ' feitas' : '') + '</span></div>';
   h += '<div class="bar"><div style="width:' + (l.length ? Math.round(done * 100 / l.length) : 0) + '%"></div></div>';
 
+  if (updateAvail) h += '<div class="banner ok"><span>Há uma nova versão do app.</span><button data-act="update">Atualizar</button></div>';
   var y = shift(t, -1), left = pendingOf(y).length;
   if (viewDay === t && left) {
     h += '<div class="banner"><span>' + (left === 1 ? 'Ficou 1 tarefa' : 'Ficaram ' + left + ' tarefas') + ' de ontem.</span><button data-act="carry">Trazer para hoje</button></div>';
@@ -260,6 +318,7 @@ function viewAgenda(){
   $('view').innerHTML = h;
   $('addbar').innerHTML = '<form class="add" id="addform"><input type="text" id="newtxt" placeholder="Nova tarefa…" autocomplete="off" maxlength="120">' +
     '<label class="timebtn' + (addTime ? ' set' : '') + '">' + (addTime || '🕒') + '<input type="time" id="newtime" value="' + addTime + '"></label>' +
+    '<button type="button" class="timebtn" data-act="recur" aria-label="Tarefas recorrentes">↻</button>' +
     '<button class="btn" type="submit" aria-label="Adicionar">+</button></form>';
   var on = document.querySelector('.day.on');
   if (on && on.scrollIntoView) on.scrollIntoView({inline:'center', block:'nearest'});
@@ -344,7 +403,9 @@ function viewLembretes(){
       return '<button class="chip' + (s.nagEvery === o[0] ? ' on' : '') + '" data-nag="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>' : '') + '</div>';
   h += '<div class="card left"><h2>Aparência</h2><div class="chips">' + [['auto', 'Igual ao celular'], ['light', 'Claro'], ['dark', 'Escuro']].map(function(o){
       return '<button class="chip' + (s.theme === o[0] ? ' on' : '') + '" data-theme-set="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div></div>';
-  h += '<div class="card"><h2>Tarefas com horário</h2><p>Ao criar uma tarefa, toque no 🕒 para marcar a hora. O celular avisa na hora certa.</p></div>';
+  h += '<div class="card"><h2>Atualizações</h2><p>Versão ' + esc(N.versionInfo()) + '. O app procura novidades sozinho ao abrir.</p><div style="height:8px"></div>' +
+    '<button class="btn ghost full" data-act="check"' + (checking ? ' disabled' : '') + '>' + (checking ? 'Procurando…' : 'Procurar atualização') + '</button></div>';
+  h += '<div class="card"><h2>Tarefas com horário</h2><p>Ao criar uma tarefa, toque no 🕒 para marcar a hora. O celular avisa na hora certa. O ↻ cria tarefas que se repetem.</p></div>';
   $('view').innerHTML = h;
   $('addbar').innerHTML = '';
 }
@@ -395,6 +456,57 @@ function showPicker(){
     el.classList.toggle('sel');
   };
   $('pickok').onclick = function(){ S.settings.blockedApps = Object.keys(sel); save(); closeOverlay(); render(); };
+}
+
+function showRecurring(){
+  var f = {text: '', kind: 'days', every: 2, days: [], time: ''};
+  var start = viewDay >= today() ? viewDay : today();
+  var o = $('overlay');
+  var draw = function(){
+    var h = '<div class="card left"><h2>Nova tarefa recorrente</h2><div style="height:8px"></div>' +
+      '<input class="field" id="rtext" placeholder="Ex.: Jogar o lixo" maxlength="120" autocomplete="off" value="' + esc(f.text) + '">' +
+      '<div class="chips"><button class="chip' + (f.kind === 'days' ? ' on' : '') + '" data-kind="days">A cada X dias</button>' +
+      '<button class="chip' + (f.kind === 'week' ? ' on' : '') + '" data-kind="week">Dias da semana</button></div>';
+    if (f.kind === 'days') {
+      h += '<div class="chips">' + [1, 2, 3, 4, 5, 7, 10, 15, 30].map(function(n){
+        return '<button class="chip' + (f.every === n ? ' on' : '') + '" data-every="' + n + '">' + (n === 1 ? 'Todo dia' : n + ' dias') + '</button>'; }).join('') + '</div>' +
+        '<p>Começa ' + esc(dayLabel(start).toLowerCase()) + '.</p>';
+    } else {
+      h += '<div class="wds">' + [1, 2, 3, 4, 5, 6, 0].map(function(d){
+        return '<button class="wd' + (f.days.indexOf(d) >= 0 ? ' on' : '') + '" data-wd="' + d + '">' + WD[d] + '</button>'; }).join('') + '</div>';
+    }
+    h += '<div class="row"><div class="lbl"><b>Horário</b><span>Opcional. Com horário, o celular avisa</span></div><input class="time" type="time" id="rtime" value="' + f.time + '"></div>' +
+      '<button class="btn full" id="radd">Adicionar</button><p id="rmsg" style="color:var(--danger)"></p></div>';
+    h += '<div class="card"><h2>Suas tarefas recorrentes</h2>' + (S.recurring.length ? S.recurring.map(function(r){
+      return '<div class="rule"><div><b>' + esc(r.text) + '</b><span>' + esc(ruleText(r)) + '</span></div><button class="del" data-rule="' + r.id + '" aria-label="Apagar">×</button></div>'; }).join('')
+      : '<p>Nenhuma ainda. Exemplos: lavar o banheiro a cada 2 dias; jogar o lixo seg, qua e sex às 06:00.</p>') + '</div>';
+    $('rbody').innerHTML = h;
+  };
+  o.innerHTML = '<div class="ovhead"><h2>Tarefas recorrentes</h2></div><div class="ovbody" id="rbody"></div>' +
+    '<div class="ovfoot"><button class="btn ghost full" id="rclose">Fechar</button></div>';
+  o.className = 'show';
+  draw();
+  $('rclose').onclick = function(){ closeOverlay(); render(); };
+  $('rbody').onchange = function(e){ if (e.target.id === 'rtime') f.time = e.target.value; };
+  $('rbody').onclick = function(e){
+    var el = e.target.closest('button'); if (!el) return;
+    var d = el.dataset;
+    f.text = $('rtext').value;
+    if (d.kind) f.kind = d.kind;
+    else if (d.every) f.every = +d.every;
+    else if (d.wd) { var i = f.days.indexOf(+d.wd); if (i >= 0) f.days.splice(i, 1); else f.days.push(+d.wd); }
+    else if (d.rule) { removeRule(+d.rule); save(); }
+    else if (el.id === 'radd') {
+      var txt = f.text.trim(), msg = !txt ? 'Escreva o nome da tarefa.' : (f.kind === 'week' && !f.days.length ? 'Escolha pelo menos um dia da semana.' : '');
+      if (msg) { $('rmsg').textContent = msg; return; }
+      var r = {id: uid(), text: txt, time: f.time, kind: f.kind, skip: {}, start: f.kind === 'week' ? today() : start};
+      if (f.kind === 'week') r.days = f.days.slice(); else r.every = f.every;
+      S.recurring.push(r);
+      materialize(); save();
+      f.text = ''; f.time = ''; f.days = [];
+    }
+    draw();
+  };
 }
 
 function showBlocked(pkg){
@@ -449,9 +561,16 @@ document.addEventListener('click', function(e){
   var li = el.closest('li'), id = li ? +li.dataset.id : 0;
   switch (d.act) {
     case 'toggle': toggle(viewDay, id); break;
-    case 'del': S.tasks[viewDay] = list(viewDay).filter(function(t){ return t.id !== id; }); save(); break;
+    case 'del':
+      // Apagar uma ocorrência de tarefa recorrente vale só para aquele dia.
+      list(viewDay).forEach(function(t){
+        if (t.id === id && t.rid) S.recurring.forEach(function(r){ if (r.id === t.rid) r.skip[viewDay] = 1; });
+      });
+      S.tasks[viewDay] = list(viewDay).filter(function(t){ return t.id !== id; }); save(); break;
     case 'carry':
-      var y = shift(today(), -1), mv = pendingOf(y);
+      var y = shift(today(), -1);
+      // Recorrente que já tem ocorrência hoje não precisa vir em dobro.
+      var mv = pendingOf(y).filter(function(p){ return !p.rid || !list(today()).some(function(x){ return x.rid === p.rid; }); });
       S.tasks[y] = list(y).filter(function(t){ return t.done; });
       S.tasks[today()] = list(today()).concat(mv); save(); break;
     case 'focus-start': S.focus.end = Date.now() + S.focus.min * 60000; N.startFocus(S.focus.end); save(); break;
@@ -462,6 +581,9 @@ document.addEventListener('click', function(e){
     case 'perm-info': N.openAppInfo(); return;
     case 'perm-notif': N.requestNotifications(); return;
     case 'pick': return showPicker();
+    case 'recur': return showRecurring();
+    case 'update': N.installUpdate(); return;
+    case 'check': checking = true; N.checkUpdate(); break;
   }
   render();
 });
@@ -470,7 +592,7 @@ document.addEventListener('submit', function(e){
   var txt = $('newtxt').value.trim();
   if (!txt) return $('newtxt').focus();
   if (!S.tasks[viewDay]) S.tasks[viewDay] = [];
-  S.tasks[viewDay].push({id: Date.now(), text: txt, time: addTime, done: false});
+  S.tasks[viewDay].push({id: uid(), text: txt, time: addTime, done: false});
   addTime = '';
   save(); render();
   $('newtxt').focus();
@@ -493,8 +615,11 @@ function handleIntent(info){
   else if (info.tab) { closeOverlay(); go(TITLES[info.tab] ? info.tab : 'agenda', today()); }
 }
 window.onNativeIntent = handleIntent;
+window.onUpdateInfo = function(){ updateAvail = true; if ($('overlay').className !== 'show') render(); };
+window.onUpdateDone = function(){ checking = false; if (tab === 'lembretes' && $('overlay').className !== 'show') render(); };
 window.onNativeResume = function(){
   applyTheme();
+  if (materialize()) save();
   var typing = $('newtxt') && $('newtxt').value;
   if ($('overlay').className !== 'show' && !typing) render();
 };

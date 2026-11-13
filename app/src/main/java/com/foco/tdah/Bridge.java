@@ -131,6 +131,22 @@ public final class Bridge {
         act.runOnUiThread(() -> act.applyTheme(dark));
     }
 
+    /** Texto da versão instalada, para a tela de Ajustes. */
+    @JavascriptInterface
+    public String versionInfo() {
+        return BuildConfig.VERSION_NAME + " (interface " + Updater.webVersion(act) + ")";
+    }
+
+    @JavascriptInterface
+    public void checkUpdate() {
+        act.checkUpdate(true);
+    }
+
+    @JavascriptInterface
+    public void installUpdate() {
+        act.installUpdate();
+    }
+
     @JavascriptInterface
     public int emergencyPass() {
         return Blocker.usePass(act);
