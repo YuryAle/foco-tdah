@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.Build;
@@ -124,6 +125,17 @@ public final class Bridge {
     public void requestNotifications() {
         if (Build.VERSION.SDK_INT < 33) return;
         act.runOnUiThread(() -> act.requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1));
+    }
+
+    @JavascriptInterface
+    public boolean systemDark() {
+        int night = act.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        return night == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    @JavascriptInterface
+    public void setDark(boolean dark) {
+        act.runOnUiThread(() -> act.applyTheme(dark));
     }
 
     @JavascriptInterface

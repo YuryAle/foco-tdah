@@ -6,6 +6,7 @@ App Android de agenda e foco para quem tem TDAH.
 - **Lembretes**: aviso na hora de cada tarefa, hora de planejar o dia seguinte, resumo da manhã e lembretes do que falta.
 - **Foco**: mostra só a próxima tarefa, com cronômetro de 10 a 45 minutos.
 - **Bloqueio**: mede o tempo nas redes sociais e, passado o tempo livre do dia, bloqueia os apps escolhidos até a lista de hoje estar concluída.
+- Modo escuro (Ajustes → Aparência).
 - Sequência de dias com a lista completa e liberação de emergência (5 min, 2 vezes por dia).
 
 Os dados ficam só no aparelho.

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -54,6 +55,18 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (web != null) web.evaluateJavascript("window.onNativeResume&&onNativeResume()", null);
+    }
+
+    /** Barras do sistema e fundo acompanham o tema escolhido na interface. */
+    @SuppressWarnings("deprecation")
+    void applyTheme(boolean dark) {
+        int bg = dark ? 0xFF14171C : 0xFFF6F3EE;
+        getWindow().setStatusBarColor(bg);
+        getWindow().setNavigationBarColor(bg);
+        getWindow().getDecorView().setBackgroundColor(bg);
+        int light = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        getWindow().getDecorView().setSystemUiVisibility(dark ? 0 : light);
+        if (web != null) web.setBackgroundColor(bg);
     }
 
     synchronized String takeLaunchInfo() {
