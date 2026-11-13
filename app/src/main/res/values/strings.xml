@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Foco TDAH</string>
+    <string name="acc_label">Foco TDAH – bloqueio de apps</string>
+    <string name="acc_desc">Usado somente para perceber quando você abre um app que escolheu bloquear e mostrar sua lista de tarefas no lugar. Nada do que aparece na tela é lido ou enviado.</string>
+</resources>
