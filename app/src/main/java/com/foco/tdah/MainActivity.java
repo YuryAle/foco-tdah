@@ -48,7 +48,19 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        WatchService.ensure(this);
         if (web != null) web.evaluateJavascript("window.onNativeResume&&onNativeResume()", null);
+    }
+
+    /** Voltar leva à tela inicial, para o app bloqueado não reaparecer por baixo. */
+    @SuppressWarnings("deprecation")
+    @Override
+    public void onBackPressed() {
+        try {
+            startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (RuntimeException e) {
+            moveTaskToBack(true);
+        }
     }
 
     @Override

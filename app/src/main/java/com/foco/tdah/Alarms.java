@@ -52,6 +52,7 @@ public class Alarms extends BroadcastReceiver {
             }
         }
         schedule(c);
+        WatchService.ensure(c);
     }
 
     /** Arma o alarme do próximo evento. Chamado sempre que os dados mudam e ao ligar o aparelho. */

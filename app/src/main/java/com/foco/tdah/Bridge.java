@@ -1,7 +1,6 @@
 package com.foco.tdah;
 
 import android.Manifest;
-import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
@@ -37,6 +36,7 @@ public final class Bridge {
     public void save(String json) {
         Store.prefs(act).edit().putString("data", json).apply();
         Alarms.schedule(act);
+        WatchService.ensure(act);
     }
 
     /** Aba ou bloqueio que abriu o app (lido uma vez). */
@@ -50,7 +50,7 @@ public final class Bridge {
         JSONObject o = new JSONObject();
         try {
             o.put("usage", Usage.hasAccess(act));
-            o.put("acc", accessibilityOn());
+            o.put("overlay", Settings.canDrawOverlays(act));
             o.put("notif", Build.VERSION.SDK_INT < 33
                     || act.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED);
             o.put("exact", Alarms.exactAllowed(act));
@@ -60,13 +60,6 @@ public final class Bridge {
         } catch (JSONException ignored) {
         }
         return o.toString();
-    }
-
-    private boolean accessibilityOn() {
-        String on = Settings.Secure.getString(act.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        if (on == null) return false;
-        ComponentName me = new ComponentName(act, BlockService.class);
-        return on.contains(me.flattenToString()) || on.contains(me.flattenToShortString());
     }
 
     /** Apps instalados que aparecem na tela inicial: [{pkg, label}], em ordem alfabética. */
@@ -112,8 +105,8 @@ public final class Bridge {
     }
 
     @JavascriptInterface
-    public void openAccessibilitySettings() {
-        open(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+    public void openOverlaySettings() {
+        open(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + act.getPackageName())));
     }
 
     @JavascriptInterface

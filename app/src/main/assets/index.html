@@ -149,10 +149,10 @@ var mock = {
   load: function(){ return localStorage.getItem('foco') || ''; },
   save: function(j){ localStorage.setItem('foco', j); },
   launchInfo: function(){ return '{}'; },
-  status: function(){ return JSON.stringify({usage:false, acc:false, notif:false, exact:true, passes:2, passUntil:0, blocking:false}); },
+  status: function(){ return JSON.stringify({usage:false, overlay:false, notif:false, exact:true, passes:2, passUntil:0, blocking:false}); },
   apps: function(){ return JSON.stringify([{pkg:'com.instagram.android',label:'Instagram'},{pkg:'com.zhiliaoapp.musically',label:'TikTok'},{pkg:'com.google.android.youtube',label:'YouTube'},{pkg:'com.whatsapp',label:'WhatsApp'},{pkg:'com.android.chrome',label:'Chrome'}]); },
   usage: function(){ return JSON.stringify({'com.instagram.android':12,'com.zhiliaoapp.musically':7}); },
-  openUsageSettings: function(){}, openAccessibilitySettings: function(){}, openAppInfo: function(){}, requestNotifications: function(){},
+  openUsageSettings: function(){}, openOverlaySettings: function(){}, openAppInfo: function(){}, requestNotifications: function(){},
   systemDark: function(){ return !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches); }, setDark: function(){},
   emergencyPass: function(){ return 1; }, startFocus: function(){}, cancelFocus: function(){}
 };
@@ -316,9 +316,9 @@ function viewBloqueio(){
   h += '<div class="card"><h2>Permissões do Android</h2><p>O bloqueio só funciona com as duas ligadas.</p>' +
     '<div class="row"><div class="lbl"><b>1. Acesso ao uso</b><span>Para medir seu tempo nas redes</span></div>' +
       (ST.usage ? '<span class="ok">✓ Ativo</span>' : '<button class="btn small" data-act="perm-usage">Ativar</button>') + '</div>' +
-    '<div class="row"><div class="lbl"><b>2. Acessibilidade</b><span>Para fechar o app bloqueado. Procure “Foco TDAH” na lista</span></div>' +
-      (ST.acc ? '<span class="ok">✓ Ativo</span>' : '<button class="btn small" data-act="perm-acc">Ativar</button>') + '</div>' +
-    (ST.acc ? '' : '<p>Se aparecer “configuração restrita”: toque em <b>Info do app</b>, depois nos três pontinhos (⋮) no canto e em “Permitir configurações restritas”. Então volte e ative.</p>' +
+    '<div class="row"><div class="lbl"><b>2. Sobrepor a outros apps</b><span>Para abrir a tela de bloqueio por cima da rede social</span></div>' +
+      (ST.overlay ? '<span class="ok">✓ Ativo</span>' : '<button class="btn small" data-act="perm-acc">Ativar</button>') + '</div>' +
+    (ST.overlay ? '' : '<p>Se aparecer “configuração restrita”: toque em <b>Info do app</b>, depois nos três pontinhos (⋮) no canto e em “Permitir configurações restritas”. Então volte e ative.</p>' +
       '<button class="btn ghost small" data-act="perm-info">Info do app</button>') + '</div>';
 
   h += '<div class="card"><h2>Apps bloqueados</h2>';
@@ -458,7 +458,7 @@ document.addEventListener('click', function(e){
     case 'focus-stop': S.focus.end = 0; N.cancelFocus(); save(); break;
     case 'focus-done': toggle(today(), +d.id); break;
     case 'perm-usage': N.openUsageSettings(); return;
-    case 'perm-acc': N.openAccessibilitySettings(); return;
+    case 'perm-acc': N.openOverlaySettings(); return;
     case 'perm-info': N.openAppInfo(); return;
     case 'perm-notif': N.requestNotifications(); return;
     case 'pick': return showPicker();

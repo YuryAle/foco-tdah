@@ -13,7 +13,7 @@ Os dados ficam só no aparelho.
 
 ## Instalar
 
-Baixe `FocoTDAH.apk` em **Releases** pelo celular e toque para instalar. Depois, na aba Bloqueio, ative as duas permissões.
+Baixe `FocoTDAH.apk` em **Releases** pelo celular e toque para instalar. Depois, na aba Bloqueio, ative as duas permissões (acesso ao uso e sobrepor a outros apps). O app não usa o serviço de Acessibilidade, que o Play Protect bloqueia em APKs de fora da loja.
 
 ## Gerar o APK
 
